@@ -1,0 +1,43 @@
+{
+  "name": "poi-plugin-info-reporter",
+  "version": "0.9.4",
+  "description": "POI plugin that forwards raw KanColle API traffic to a configured HTTP target.",
+  "main": "index.js",
+  "keywords": [
+    "poi",
+    "poi-plugin",
+    "kancolle",
+    "kantai-collection"
+  ],
+  "author": {
+    "name": "Emiya",
+    "email": "suzuharaakira@gmail.com",
+    "url": "https://github.com/Emiya6070"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Emiya6070/poi-plugin-info-reporter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Emiya6070/poi-plugin-info-reporter/issues"
+  },
+  "homepage": "https://github.com/Emiya6070/poi-plugin-info-reporter#readme",
+  "files": [
+    "index.js",
+    "plugin/",
+    "src/",
+    "LICENSE",
+    "README.md"
+  ],
+  "poiPlugin": {
+    "title": "Info Reporter",
+    "description": "Forward raw KanColle API request/response payloads to a configured HTTP target.",
+    "icon": "fa/info-circle",
+    "priority": 50,
+    "apiVer": {
+      "10.2.99": "0.5.0"
+    }
+  },
+  "dependencies": {}
+}
