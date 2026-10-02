@@ -21,6 +21,7 @@ const {
   computeStart2Version,
 } = require('./lib/start2-version');
 const { BattleDetailBuilder } = require('../src/runtime/battle-detail-builder');
+const { battleResultExperience } = require('./lib/admiral-experience');
 
 const PATCH_MARK = '__poiKancolleForwarder__';
 
@@ -277,6 +278,9 @@ function createForwarder(options) {
     }
     if ((isBattleApiPath(path) || isBattleResultApiPath(path)) && battleDetail) {
       message.battleDetail = battleDetail;
+    }
+    if (isBattleResultApiPath(path)) {
+      message.admiralExperience = battleResultExperience(response);
     }
     const pending = client.send(message);
     if (pending && typeof pending.catch === 'function') {

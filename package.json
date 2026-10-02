@@ -1,6 +1,6 @@
 {
   "name": "poi-plugin-info-reporter",
-  "version": "0.9.4",
+  "version": "0.10.0",
   "description": "POI plugin that forwards raw KanColle API traffic to a configured HTTP target.",
   "main": "index.js",
   "keywords": [
