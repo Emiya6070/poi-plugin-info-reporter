@@ -4,7 +4,11 @@ POI plugin that forwards raw KanColle API request/response payloads to a configu
 
 ## Compatibility
 
-Compatible with POI 11 and POI 12. The release package was checked against the POI 11.0.0 and 12.0.0 plugin contracts, using React 18.3.1 and Immutable 4.1.0 / 5.1.9 respectively. Checks cover loading, settings, game events, HTTP forwarding, and unloading/reloading; they do not replace an in-game test in both desktop versions.
+Compatible with POI 11 and POI 12. Version 0.11.1 uses POI's require-loaded `.es` entry to restore settings and capture lifecycle exports in POI 12's Electron renderer.
+
+Version 0.11.1 was verified in the POI 12.0.1 desktop app (Electron 44.0.0): settings, normal start2/map uploads, local debug quest/port uploads, and plugin reloading all passed. Forwarded requests and responses matched the real game events. Earlier contract checks covered POI 11.0.0 and 12.0.0; those were not desktop game tests.
+
+When upgrading from 0.11.0, fully quit and restart POI once. Disabling and enabling the plugin alone does not clear the cached package entry.
 
 ## Admiral experience (0.10.0)
 

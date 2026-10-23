@@ -1,4 +1,4 @@
 'use strict';
 
-// POI loads this package entry; all plugin UI/runtime lives under ./plugin
+// CommonJS entry shared by POI's index.es bridge and other Node consumers.
 module.exports = require('./plugin/poi-entry');
