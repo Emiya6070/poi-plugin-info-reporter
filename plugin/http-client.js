@@ -1,5 +1,6 @@
 'use strict';
 
+const { URL } = require('url');
 const { PLUGIN_VERSION } = require('./version');
 
 function normalizeHttpBase(url) {
@@ -16,6 +17,17 @@ function normalizeProxyUrl(url) {
   return value
     .replace(/^socks5h:\/\//i, 'socks5://')
     .replace(/\/$/, '');
+}
+
+function isLocalTargetUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return false;
+  try {
+    const target = new URL(normalizeHttpBase(url));
+    return (target.protocol === 'http:' || target.protocol === 'https:')
+      && target.hostname === '127.0.0.1';
+  } catch (error) {
+    return false;
+  }
 }
 
 function loadNodeHttp() {
@@ -182,11 +194,21 @@ function createHttpClient(options) {
   }
 
   function sendOnce(payload, config) {
+    const debugMode = payload.debugMode === true;
+    if (debugMode && !isLocalTargetUrl(config.baseUrl)) {
+      return Promise.reject(new Error('debug_mode_requires_127.0.0.1'));
+    }
     const endpoint = `${config.baseUrl}/ingest`;
     const body = JSON.stringify(payload);
     const headers = buildHeaders(body, config.ingestToken);
 
-    if (config.proxyUrl) {
+    // Debug payloads must stay on this machine, including when a proxy is configured.
+    // Node's direct transport also avoids automatic redirects and system proxies.
+    if (debugMode && node) {
+      return postDirect(endpoint, body, headers, node, timeoutMs);
+    }
+
+    if (config.proxyUrl && !debugMode) {
       if (!node) {
         return Promise.reject(new Error('HTTP proxy requires Node http/https in this environment'));
       }
@@ -206,6 +228,7 @@ function createHttpClient(options) {
         method: 'POST',
         headers: fetchHeaders,
         body,
+        ...(debugMode ? { redirect: 'error' } : {}),
       });
     }
 
@@ -220,6 +243,7 @@ function createHttpClient(options) {
         method: 'POST',
         headers: fetchHeaders,
         body,
+        ...(debugMode ? { redirect: 'error' } : {}),
       });
     }
 
@@ -323,5 +347,6 @@ module.exports = {
   createHttpClient,
   normalizeHttpBase,
   normalizeProxyUrl,
+  isLocalTargetUrl,
   PLUGIN_VERSION,
 };

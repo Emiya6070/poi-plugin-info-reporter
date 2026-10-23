@@ -2,11 +2,13 @@
 
 const React = require('react');
 const { createForwarder, createHttpClient } = require('./index');
+const { isLocalTargetUrl } = require('./http-client');
 const { PLUGIN_VERSION } = require('./version');
 
 const TARGET_URL_KEY = 'plugin.KanColleForwarder.targetUrl';
 const PROXY_URL_KEY = 'plugin.KanColleForwarder.proxyUrl';
 const TOKEN_KEY = 'plugin.KanColleForwarder.ingestToken';
+const DEBUG_MODE_KEY = 'plugin.KanColleForwarder.debugMode';
 const DEFAULT_TARGET_URL = 'http://127.0.0.1:3721';
 
 function getPoiStore(path) {
@@ -40,6 +42,11 @@ function getIngestToken() {
     : '';
 }
 
+function getDebugMode() {
+  const config = getConfig();
+  return !!(config && typeof config.get === 'function' && config.get(DEBUG_MODE_KEY, false) === true);
+}
+
 const client = createHttpClient({
   url: getTargetUrl(),
   proxyUrl: getProxyUrl(),
@@ -51,6 +58,7 @@ const capture = createForwarder({
   getTargetUrl,
   getProxyUrl,
   getToken: getIngestToken,
+  getDebugMode,
   getStore: getPoiStore,
 });
 
@@ -61,10 +69,12 @@ class ForwarderSettings extends React.Component {
       targetUrl: getTargetUrl(),
       proxyUrl: getProxyUrl(),
       ingestToken: getIngestToken(),
+      debugMode: getDebugMode(),
     };
     this.handleTargetChange = this.handleTargetChange.bind(this);
     this.handleProxyChange = this.handleProxyChange.bind(this);
     this.handleTokenChange = this.handleTokenChange.bind(this);
+    this.handleDebugModeChange = this.handleDebugModeChange.bind(this);
   }
 
   handleTargetChange(event) {
@@ -103,7 +113,17 @@ class ForwarderSettings extends React.Component {
     }
   }
 
+  handleDebugModeChange(event) {
+    const debugMode = isLocalTargetUrl(this.state.targetUrl) && event.target.checked === true;
+    this.setState({ debugMode });
+    const config = getConfig();
+    if (config && typeof config.set === 'function') {
+      config.set(DEBUG_MODE_KEY, debugMode);
+    }
+  }
+
   render() {
+    const localTarget = isLocalTargetUrl(this.state.targetUrl);
     return React.createElement(
       'div',
       null,
@@ -117,6 +137,20 @@ class ForwarderSettings extends React.Component {
           onChange: this.handleTargetChange,
           style: { display: 'block', width: '100%', marginTop: 6, marginBottom: 12 },
         })
+      ),
+      React.createElement('label', null,
+        React.createElement('input', {
+          type: 'checkbox',
+          checked: localTarget && this.state.debugMode,
+          disabled: !localTarget,
+          onChange: this.handleDebugModeChange,
+        }),
+        ' 调试模式（发送全部游戏 API 请求和响应）'
+      ),
+      React.createElement('p', { style: { marginTop: 6, marginBottom: 12 } },
+        localTarget
+          ? '开启后直接连接本机服务，不使用代理。'
+          : '调试模式仅在目标主机为 127.0.0.1 时有效。'
       ),
       React.createElement('label', null,
         'Ingest Token',

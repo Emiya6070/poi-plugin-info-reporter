@@ -22,6 +22,7 @@ const {
 } = require('./lib/start2-version');
 const { BattleDetailBuilder } = require('../src/runtime/battle-detail-builder');
 const { battleResultExperience } = require('./lib/admiral-experience');
+const { isLocalTargetUrl } = require('./http-client');
 
 const PATCH_MARK = '__poiKancolleForwarder__';
 
@@ -35,6 +36,7 @@ function createForwarder(options) {
   const getTargetUrl = options && options.getTargetUrl;
   const getProxyUrl = options && options.getProxyUrl;
   const getToken = options && options.getToken;
+  const getDebugMode = options && options.getDebugMode;
   const getStore = options && options.getStore;
   const cleanups = [];
   const battleDetailBuilder = new BattleDetailBuilder({ getStore });
@@ -148,7 +150,7 @@ function createForwarder(options) {
     return next;
   }
 
-  function syncPendingStart2(player, source) {
+  function syncPendingStart2(player, source, debugMode) {
     if (!pendingStart2 || !player || player.api_member_id == null) return null;
     const memberId = String(player.api_member_id);
     const syncKey = `${memberId}:${pendingStart2.version}`;
@@ -163,6 +165,7 @@ function createForwarder(options) {
       player,
       start2Version: pendingStart2.version,
     };
+    if (debugMode) common.debugMode = true;
     const probe = Object.assign({}, common, { type: 'start2_version_probe' });
     const upload = Object.assign({}, common, {
       type: 'start2_data',
@@ -185,21 +188,31 @@ function createForwarder(options) {
     return pending;
   }
 
+  function sendApiMessage(message) {
+    const pending = client.send(message);
+    if (pending && typeof pending.catch === 'function') {
+      pending.catch(() => {});
+    }
+    return { ok: true, path: message.path };
+  }
+
   function forwardGameResponse(detail, source) {
     if (!detail || !detail.path) return null;
     const path = normalizeApiPath(detail.path);
-    if (!isKcsApiPath(path)
-      || (!isPointApiPath(path)
-        && !isMapApiPath(path)
-        && !isBattleApiPath(path)
-        && !isBattleResultApiPath(path)
-        && path !== START2_PATH
-        && path !== '/kcsapi/api_port/port')) {
-      return null;
-    }
+    if (!isKcsApiPath(path)) return null;
+    const targetUrl = getTargetUrl ? getTargetUrl()
+      : (typeof client.getUrl === 'function' ? client.getUrl() : null);
+    const debugMode = !!(getDebugMode && getDebugMode() === true && isLocalTargetUrl(targetUrl));
+    const trackedApi = isPointApiPath(path)
+      || isMapApiPath(path)
+      || isBattleApiPath(path)
+      || isBattleResultApiPath(path)
+      || path === START2_PATH
+      || path === '/kcsapi/api_port/port';
+    if (!trackedApi && !debugMode) return null;
 
     if (getTargetUrl && typeof client.setUrl === 'function') {
-      client.setUrl(getTargetUrl());
+      client.setUrl(targetUrl);
     }
     if (getProxyUrl && typeof client.setProxyUrl === 'function') {
       client.setProxyUrl(getProxyUrl());
@@ -208,10 +221,23 @@ function createForwarder(options) {
       client.setToken(getToken());
     }
 
-    const rawRequest = parseRequestBody(detail.postBody || detail.request || detail.params);
-    const response = parseResponsePayload(detail.body || detail.response || detail.payload);
+    const rawRequest = parseRequestBody(detail.postBody ?? detail.request ?? detail.params);
+    const response = parseResponsePayload(detail.body ?? detail.response ?? detail.payload);
     updateSortieContext(path, rawRequest, response);
     const time = detail.time || detail.timestamp || Date.now();
+    const message = {
+      type: 'api',
+      clientEventId: createClientEventId(),
+      source: source || 'game.response',
+      path,
+      request: rawRequest,
+      response,
+      time,
+      start2Version: activeStart2Version,
+      player: null,
+      poiContext: null,
+    };
+    if (debugMode) message.debugMode = true;
     if (path === START2_PATH) {
       activeStart2Version = computeStart2Version(response);
       pendingStart2 = {
@@ -226,6 +252,10 @@ function createForwarder(options) {
         body: response,
         time,
       });
+      if (debugMode) {
+        message.start2Version = activeStart2Version;
+        sendApiMessage(message);
+      }
       return { ok: true, path, kind: 'start2', start2Version: activeStart2Version };
     }
     if (path === '/kcsapi/api_port/port') {
@@ -236,14 +266,21 @@ function createForwarder(options) {
         time,
       });
       if (getStore) {
-        syncPendingStart2(readPlayerIdentity(getStore), source);
+        message.player = readPlayerIdentity(getStore);
+        syncPendingStart2(message.player, source, debugMode);
       }
+      if (debugMode) sendApiMessage(message);
       return {
         ok: true,
         path,
         kind: 'start2_sync',
         start2Version: activeStart2Version,
       };
+    }
+
+    if (!trackedApi) {
+      message.player = getStore ? readPlayerIdentity(getStore) : null;
+      return sendApiMessage(message);
     }
 
     const request = withSortieContextRequest(rawRequest);
@@ -261,18 +298,11 @@ function createForwarder(options) {
         combined: String(path).includes('combined_battle'),
       })
       : null;
-    const message = {
-      type: 'api',
-      clientEventId: createClientEventId(),
-      source: source || 'game.response',
-      path,
+    Object.assign(message, {
       request,
-      response,
-      time,
-      start2Version: activeStart2Version,
       player: poiContext && poiContext.player ? poiContext.player : null,
       poiContext,
-    };
+    });
     if (sortieContext.battleChainId != null && shouldAttachBattleChain(path)) {
       message.battleChainId = sortieContext.battleChainId;
     }
@@ -282,11 +312,7 @@ function createForwarder(options) {
     if (isBattleResultApiPath(path)) {
       message.admiralExperience = battleResultExperience(response);
     }
-    const pending = client.send(message);
-    if (pending && typeof pending.catch === 'function') {
-      pending.catch(() => {});
-    }
-    return { ok: true, path };
+    return sendApiMessage(message);
   }
 
   function installGlobalCapture(root) {

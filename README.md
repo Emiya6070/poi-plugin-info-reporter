@@ -23,12 +23,16 @@ Install `poi-plugin-info-reporter` from the POI plugin manager, or place this pa
 | Target URL | `http://127.0.0.1:3721` | Destination for forwarded payloads |
 | Proxy URL | _(empty)_ | Optional HTTP proxy |
 | Ingest Token | _(empty)_ | Optional auth token sent with requests |
+| 调试模式 | 关闭 | 仅在 Target URL 的主机为 `127.0.0.1` 时生效，发送全部游戏 API 请求和响应 |
+
+调试模式会将 POI `game.response` 捕获的全部 `/kcsapi/` 请求和完整响应发送到 `/ingest`，包括 `start2`、母港和非战斗 API；原有战斗上下文和 start2 版本同步继续保留。调试数据直接连接本机服务，不经过代理，也不跟随 HTTP 重定向。切换到非 `127.0.0.1` 地址时自动恢复普通上报范围，切回本机后按保存的开关恢复。是否保存数据仍由接收服务的模式决定。
 
 Config keys (kept for compatibility):
 
 - `plugin.KanColleForwarder.targetUrl`
 - `plugin.KanColleForwarder.proxyUrl`
 - `plugin.KanColleForwarder.ingestToken`
+- `plugin.KanColleForwarder.debugMode`
 
 ## License
 
